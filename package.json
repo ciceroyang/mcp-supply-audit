@@ -1,0 +1,33 @@
+{
+  "name": "mcp-supply-audit",
+  "version": "0.1.0",
+  "description": "Census and provenance audit for the public MCP server ecosystem: registry enumeration plus evidence-carrying static findings.",
+  "type": "module",
+  "bin": {
+    "mcp-supply-audit": "mcp-audit.mjs"
+  },
+  "exports": "./mcp-audit.mjs",
+  "files": [
+    "mcp-audit.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "security",
+    "supply-chain",
+    "agent"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ciceroyang/mcp-supply-audit.git"
+  }
+}

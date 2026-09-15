@@ -1,0 +1,27 @@
+name: census
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  census:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --test
+      - run: node mcp-audit.mjs --max 6000 --out census.json --markdown census.md
+      - name: Publish the rolling census
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view mcp-census >/dev/null 2>&1 || gh release create mcp-census --title "MCP supply-chain census" --notes "Rolling census of the official MCP registry with per-finding provenance."
+          gh release upload mcp-census census.json census.md --clobber
+          gh release edit mcp-census --notes-file census.md
