@@ -22,15 +22,18 @@ export function deriveVerdict(blocks, threshold) {
   return notable ? VERDICT.FINDINGS : VERDICT.CLEAN
 }
 
-function readJson(path) {
-  if (!path || !existsSync(path)) return null
-  try { return JSON.parse(readFileSync(path, "utf8")) } catch (error) { return null }
+/** Accept an already-parsed artifact or a path to one. */
+function asJson(value) {
+  if (!value) return null
+  if (typeof value === "object") return value
+  if (!existsSync(value)) return null
+  try { return JSON.parse(readFileSync(value, "utf8")) } catch (error) { return null }
 }
 
 export function buildIndex(options) {
-  const census = readJson(options.census)
-  const guard = readJson(options.guard)
-  const repos = readJson(options.repos)
+  const census = asJson(options.census)
+  const guard = asJson(options.guard)
+  const repos = asJson(options.repos)
   if (!census) throw new Error("a census artifact is required")
   const threshold = options.threshold || "medium"
 
