@@ -326,6 +326,14 @@ export function convergenceProbe(ourPerRule, measurementPath) {
   const spearman = n > 1 ? 1 - (6 * d2) / (n * (n * n - 1)) : 0
   const top = ids.slice().sort((a, b) => theirs[b] - theirs[a] || a.localeCompare(b)).slice(0, 15).map((id) => ({ rule: id, theirs: theirs[id], ours: ourPerRule[id] ?? 0, maturity: measured.rules[id].maturity ?? null }))
   const covered = ids.filter((id) => (ourPerRule[id] ?? 0) > 0).length
+  const lanes = {}
+  for (const id of ids) {
+    const m = measured.rules[id].maturity ?? "unknown"
+    if (!lanes[m]) lanes[m] = { rules: 0, fp: 0 }
+    lanes[m].rules += 1
+    lanes[m].fp += theirs[id]
+  }
+  const byMaturity = Object.entries(lanes).map(([maturity, v]) => ({ maturity, rules: v.rules, fp: v.fp })).sort((a, b) => b.fp - a.fp)
   return {
     generatedAt: measured.generated_at ?? null,
     commit: measured.commit ?? null,
@@ -336,6 +344,7 @@ export function convergenceProbe(ourPerRule, measurementPath) {
     theirTotal: Object.values(theirs).reduce((a, b) => a + b, 0),
     measuredRules: n,
     rulesWeAlsoFire: covered,
+    byMaturity,
     spearman,
     top,
   }
@@ -447,6 +456,14 @@ export function renderMarkdown(payload) {
     lines.push("They publish " + code("data/benign-fp-measurement.json") + " (generated " + v.generatedAt + ", commit " + code(String(v.commit).slice(0, 8)) + ", corpus digest " + code(v.corpusDigest) + "): a per-rule `fp_count` over **" + v.sampleCount + " samples** across " + v.shapes.length + " input shapes (" + v.shapes.join(", ") + "). They measure **" + v.measuredRules + " rules**; " + v.rulesWeAlsoFire + " of those also fire under our instrument.")
     lines.push("")
     lines.push("We reproduce neither their shapes nor their engine, so counts are not comparable one-to-one. Rank order is: **Spearman rho = " + v.spearman.toFixed(3) + "** over all " + v.measuredRules + " measured rules (our count is zero for any rule we never matched).")
+    lines.push("")
+    lines.push("The `fp_count` summed by rule maturity, which is the lane a rule holds. Their `stable` tier is the auto-block lane:")
+    lines.push("")
+    lines.push("| maturity | rules | total fp_count |")
+    lines.push("| --- | --- | --- |")
+    for (const row of v.byMaturity) lines.push("| " + row.maturity + " | " + row.rules + " | " + row.fp + " |")
+    lines.push("")
+    lines.push("Their five highest-`fp_count` rules:")
     lines.push("")
     lines.push("| rule | their fp_count | our benign hits | their maturity |")
     lines.push("| --- | --- | --- | --- |")

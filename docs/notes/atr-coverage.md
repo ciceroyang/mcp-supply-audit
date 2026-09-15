@@ -90,6 +90,19 @@ ATR publishes `data/benign-fp-measurement.json`: a per-rule `fp_count` over **13
 
 Two independent instruments agree on the ordering almost perfectly and disagree on magnitude for exactly the rules whose fields are structured (`00454`, `00020`, `00217` fire on JSON shapes we feed as raw text). That agreement is the reason to trust each instrument's ordering, and the reason not to quote our raw counts as a false-positive rate.
 
+### Where the pressure actually sits
+
+Their measurement also records each rule's maturity, which maps to its lane. Summing the published `fp_count` by maturity over the same 13,848 samples:
+
+| maturity | rules | total fp_count |
+| --- | --- | --- |
+| `stable` (the auto-block / enforce lane) | 106 | **7** |
+| `test` | 608 | 11,815 |
+| `experimental` | 65 | 4,593 |
+| `draft` | 14 | 1 |
+
+The enforce lane is effectively clean: seven false positives across 106 rules × 13,848 samples — which is the three-rule demotion in the project's current `#568`. Every large `fp_count` belongs to a rule already outside the blocking lane. A reader who took the 39.1% figure above as a defect rate would be reading a property of the corpus and the pattern layer, not of the enforced product.
+
 ### Corpus hygiene note
 
 Five `for_rule` ids referenced by the benign corpora have no rule file: `ATR-2026-02622`, `-02624`, `-02625`, `-02628`, `-02629`. Of those, `02624`, `02628` and `02629` exist under `proposals/`, and `02622` and `02625` exist nowhere in the tree. Benign twins authored against an id that never landed cannot constrain any rule.
