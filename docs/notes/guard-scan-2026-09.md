@@ -20,14 +20,14 @@ node scripts/guard-scan.mjs --census census.json --out guard-scan.json --summary
 
 | rule | severity | packages | example |
 | --- | --- | --- | --- |
-| `AG-SUPPLY-001` | high | 5 | `@clawfetch/mcp@0.2.2` — devDependency resolves to `file:../clawfetch-sdk` |
+| `AG-SUPPLY-001` | medium | 5 | `@clawfetch/mcp@0.2.2` — devDependency resolves to `file:../clawfetch-sdk` |
 | `AG-INSTALL-001` | critical | 2 | `@buywhere/mcp-server@0.3.1` — the `postinstall` script evaluates inline code |
-| `AG-SUPPLY-002` | medium | 2 | `@circulara/plugin@0.1.2` — devDependency floats on `*` |
+| `AG-SUPPLY-002` | low | 2 | `@circulara/plugin@0.1.2` — devDependency floats on `*` |
 
 ## What the join shows
 
 The census already reports install-time execution through its own hook analysis. Running the same manifests through agent-guard adds two things the census does not say on its own: dependency specifications that resolve to a mutable source (`file:`, git, raw http) rather than a registry version, and versions that float on `*`.
 
-It also exposes a refinement worth making. Every `AG-SUPPLY-001` hit above is a **devDependency**, which cannot reach a user of the package, only its maintainer. The rule does not currently distinguish `dependencies` from `devDependencies`, so the five are true statements with an overstated blast radius. The fix is to keep the finding and lower its severity for the dev-only fields, not to drop it.
+It also exposed a refinement, which is now made. Every `AG-SUPPLY-001` hit above is a **devDependency**, and a dev or peer dependency never reaches someone who installs the package — only its maintainer. agent-guard now reports those fields at a lower severity than a runtime one: `AG-SUPPLY-001` drops from high to medium and `AG-SUPPLY-002` from medium to low, with `(dev-only)` appended to the message. The finding stays, because the statement is still true; only its weight changed.
 
 A package whose manifest could not be fetched stays visible as `metadata-unavailable`. Folding those 22 into "clean" would have made the pipeline report 238 clean packages instead of 216, and that number would have been wrong.
