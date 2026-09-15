@@ -20,6 +20,10 @@ The [official MCP registry](https://registry.modelcontextprotocol.io) describes 
 | `package-deprecated` | info | the package is deprecated on the registry |
 | `stdio-transport` | info | the server runs locally as a child process |
 | `package-metadata-unavailable` | unknown | metadata could not be fetched — explicitly not reported as clean |
+| `pypi-sdist-only` | medium | (PyPI) the declared version ships no wheel, so installing builds from source and executes build code |
+| `pypi-install-time-unknown` | unknown | (PyPI) wheels unpack without executing code but sdist builds do, and PyPI metadata exposes no hook either way — the install-time dimension stays unknown, never clean |
+| `declared-version-not-found` | unknown | (PyPI) the declared version has no files in `releases` |
+| `package-yanked` | info | (PyPI) the declared version is yanked |
 
 ## Usage
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { auditPackage, summarize, renderMarkdown, newestPerServer, hookScriptRefs, stripStringsAndComments, criticalPatternOf } from '../mcp-audit.mjs'
+import { auditPackage, auditPypiPackage, summarize, renderMarkdown, newestPerServer, hookScriptRefs, stripStringsAndComments, criticalPatternOf } from '../mcp-audit.mjs'
 
 const server = {
   name: 'acme/server',
@@ -75,7 +75,7 @@ test('renderMarkdown shows the rule table and high-severity rows', () => {
   }
   const md = renderMarkdown(payload)
   assert.match(md, /Enumerated \*\*2\*\* registry entries covering \*\*1\*\* unique servers/)
-  assert.match(md, /Audited: \*\*1\*\* npm packages/)
+  assert.match(md, /Audited: \*\*1\*\* npm and \*\*0\*\* PyPI packages/)
   assert.match(md, /install-script-shell-pipeline/)
   assert.match(md, /Static only/)
 })
@@ -155,4 +155,35 @@ test('the critical tier has precision and recall 1.0 on the labeled corpus', () 
   const falseNegatives = CORPUS.filter((c) => c.label === 'malicious' && criticalPatternOf(c.text) === null)
   assert.deepEqual(falsePositives, [], 'benign samples flagged: ' + JSON.stringify(falsePositives))
   assert.deepEqual(falseNegatives, [], 'malicious samples missed: ' + JSON.stringify(falseNegatives))
+})
+
+const pypiDoc = (files, overrides = {}) => ({
+  info: Object.assign({ version: '1.0.0', project_urls: { Source: 'https://github.com/acme/pypi-mcp' }, home_page: '' }, overrides.info || {}),
+  releases: { '1.0.0': files },
+})
+
+test('auditPypiPackage: sdist-only is a build-time execution risk', () => {
+  const findings = auditPypiPackage(server, pypiDoc([{ packagetype: 'sdist' }]), { version: '1.0.0' })
+  const rule = findings.find((f) => f.rule === 'pypi-sdist-only')
+  assert.equal(rule.severity, 'medium')
+})
+
+test('auditPypiPackage: a wheel still leaves install-time unknown, not clean', () => {
+  const findings = auditPypiPackage(server, pypiDoc([{ packagetype: 'bdist_wheel' }, { packagetype: 'sdist' }]), { version: '1.0.0' })
+  const rule = findings.find((f) => f.rule === 'pypi-install-time-unknown')
+  assert.equal(rule.severity, 'unknown')
+})
+
+test('auditPypiPackage: missing release files, provenance and freshness', () => {
+  const findings = auditPypiPackage(server, pypiDoc([], { info: { version: '2.0.0', project_urls: {}, home_page: '' } }), { version: '1.0.0' })
+  const rules = findings.map((f) => f.rule)
+  assert.ok(rules.includes('declared-version-not-found'))
+  assert.ok(rules.includes('package-repository-missing'))
+  assert.ok(rules.includes('declared-version-not-latest'))
+})
+
+test('auditPypiPackage: unavailable metadata is unknown, never clean', () => {
+  const findings = auditPypiPackage(server, null, { version: '1.0.0' })
+  assert.deepEqual(findings.map((f) => f.rule), ['package-metadata-unavailable'])
+  assert.equal(findings[0].severity, 'unknown')
 })

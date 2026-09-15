@@ -247,6 +247,60 @@ export async function fetchHookScript(name, version, path, http = defaultHttp) {
   return null
 }
 
+/** Fetch one PyPI JSON document; null on any failure. Read-only. */
+export async function fetchPypiDocument(name, http = defaultHttp) {
+  const res = await http('https://pypi.org/pypi/' + name + '/json')
+  if (res.status !== 200) return null
+  try {
+    return JSON.parse(res.text)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Audit a PyPI package the registry declares. The important difference from npm:
+ * PyPI metadata exposes no install hooks, so the install-time dimension is reported
+ * as unknown unless the release is sdist-only, in which case installing necessarily
+ * builds (and therefore executes) code.
+ */
+export function auditPypiPackage(server, doc, declared = {}) {
+  const findings = []
+  const add = (rule, severity, evidence) => findings.push({ rule, severity, evidence })
+  const info = doc?.info
+  if (!info) {
+    add('package-metadata-unavailable', 'unknown', 'PyPI JSON metadata unavailable')
+    return findings
+  }
+  const declaredVersion = declared.version ?? info.version ?? null
+  const urls = Object.assign({}, info.project_urls || {})
+  const vcsEntry = Object.entries(urls).find(([, url]) => /github\.com|gitlab\.com|codeberg\.org|bitbucket\.org/i.test(String(url)))
+  const homeIsVcs = /github\.com|gitlab\.com/i.test(String(info.home_page || ''))
+  const pkgRepo = vcsEntry ? vcsEntry[1] : (homeIsVcs ? info.home_page : null)
+  const regRepo = server?.repository?.url ?? server?.repository ?? null
+  if (!pkgRepo) {
+    add('package-repository-missing', 'medium', 'no VCS URL in project_urls or home_page')
+  } else if (regRepo) {
+    const pkgKey = repoKey(pkgRepo)
+    const regKey = repoKey(regRepo)
+    if (pkgKey && regKey && pkgKey !== regKey) add('repository-mismatch', 'medium', 'package repository ' + pkgKey + ' vs registry repository ' + regKey)
+  }
+  const files = (doc.releases || {})[declaredVersion] || []
+  const kinds = [...new Set(files.map((file) => file.packagetype).filter(Boolean))]
+  if (files.length === 0) {
+    add('declared-version-not-found', 'unknown', 'declared version ' + declaredVersion + ' has no files in releases')
+  } else if (!kinds.includes('bdist_wheel')) {
+    add('pypi-sdist-only', 'medium', 'declared version ships no wheel (' + kinds.join(',') + '); installing builds from source, which executes build code')
+  } else {
+    add('pypi-install-time-unknown', 'unknown', 'PyPI metadata exposes no install/build hook; wheels unpack without executing code, sdist builds do. files: ' + kinds.join(','))
+  }
+  if (info.version && declaredVersion && info.version !== declaredVersion) {
+    add('declared-version-not-latest', 'info', 'registry declares ' + declaredVersion + ', PyPI latest is ' + info.version)
+  }
+  if (info.yanked === true) add('package-yanked', 'info', 'the declared version is yanked on PyPI')
+  return findings
+}
+
 export async function fetchNpmDocument(name, http = defaultHttp) {
   const res = await http(npmUrl(name))
   if (res.status !== 200) return null
@@ -263,7 +317,7 @@ function severityRank(severity) {
 
 export function summarize(rows) {
   const counts = {}
-  const servers = { total: rows.length, withFindings: 0, auditedNpm: 0, withPackage: 0, notAuditedPackages: 0, remoteOnly: 0 }
+  const servers = { total: rows.length, withFindings: 0, auditedNpm: 0, auditedPypi: 0, withPackage: 0, notAuditedPackages: 0, remoteOnly: 0 }
   const packageTypes = {}
   for (const row of rows) {
     if (row.findings.length > 0) servers.withFindings += 1
@@ -274,8 +328,10 @@ export function summarize(rows) {
     }
     servers.withPackage += 1
     packageTypes[row.registryType ?? '?'] = (packageTypes[row.registryType ?? '?'] ?? 0) + 1
-    if (row.audited) servers.auditedNpm += 1
-    else servers.notAuditedPackages += 1
+    if (row.audited) {
+      if (row.registryType === 'pypi') servers.auditedPypi += 1
+      else servers.auditedNpm += 1
+    } else servers.notAuditedPackages += 1
   }
   return { servers, packageTypes, ruleCounts: counts }
 }
@@ -289,7 +345,7 @@ export function renderMarkdown(payload) {
   lines.push('')
   lines.push('Enumerated **' + (payload.registry?.entries ?? s.servers.total) + '** registry entries covering **' + s.servers.total + '** unique servers. **' + s.servers.withPackage + '** declare a package (' + Object.entries(s.packageTypes).map(([type, count]) => type + ' ' + count).join(', ') + '); **' + s.servers.remoteOnly + '** are remote-only (no package, out of scope for this audit).')
   lines.push('')
-  lines.push('Audited: **' + s.servers.auditedNpm + '** npm packages. **' + s.servers.notAuditedPackages + '** package-declaring servers use a registry this version does not audit yet and are **not** reported as clean.')
+  lines.push('Audited: **' + s.servers.auditedNpm + '** npm and **' + s.servers.auditedPypi + '** PyPI packages. **' + s.servers.notAuditedPackages + '** package-declaring servers use a registry this version does not audit yet and are **not** reported as clean.')
   lines.push('')
   lines.push('| rule | findings |', '| --- | --- |')
   for (const [rule, count] of Object.entries(s.ruleCounts).sort((a, b) => b[1] - a[1])) lines.push('| ' + rule + ' | ' + count + ' |')
@@ -367,9 +423,26 @@ async function main() {
       }
       row.findings = auditPackage(server, doc, { version: row.version }, hookScripts)
       row.audited = true
+      row.auditKind = 'npm'
     }
   }
   await Promise.all(Array.from({ length: Math.max(1, args.concurrency) }, worker))
+
+  const pypiRows = rows.filter((row) => row.registryType === 'pypi' && row.package)
+  let pypiCursor = 0
+  const pypiWorker = async () => {
+    while (pypiCursor < pypiRows.length) {
+      const index = pypiCursor
+      pypiCursor += 1
+      const row = pypiRows[index]
+      const server = uniqueServers.find((s) => s.name === row.server)
+      const doc = await fetchPypiDocument(row.package)
+      row.findings = auditPypiPackage(server, doc, { version: row.version })
+      row.audited = true
+      row.auditKind = 'pypi'
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, args.concurrency) }, pypiWorker))
 
   const payload = {
     schema: SCHEMA,
