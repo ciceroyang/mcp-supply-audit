@@ -36,9 +36,20 @@ Reported rule ids were compared against `expectedRules` and the finding total ag
 | 12-colorado-admt | 3 | 0 | 5 | 3 |
 | 13-eu-ai-act-art50 | 3 | 0 | 7 | 3 |
 
+## Finding pressure on real-world configuration
+
+To get a false-positive proxy that does not depend on labels the project wrote, 37 `.mcp.json` files were fetched from 37 distinct public repositories (template, sample, fixture and security-tooling files excluded), each placed alone in an isolated directory and scanned with the same CLI. Repository names are deliberately not recorded here; the question is what the rules do on ordinary real configs, not which projects look bad.
+
+- **5 of 37 produced no findings at all.**
+- **30 of 37 (81%) produced `AAK-MCP-ATTEST-001`** — "MCP server admitted without attestation" (medium), which wants a signed clearance assertion, a `/.well-known/mcp-clearance` URI, or a pinned trust root on the server entry. Practically no public MCP config carries that.
+- Four of those were `AAK-MCP-ATTEST-001` and nothing else.
+- The next most frequent rules were `AAK-MCP-006` (relative path, 12), `AAK-MCP-005` (`npx`/`uvx`, 11), `AAK-MCP-007` (10), `AAK-SUPPLY-001` (10) and `AAK-MCP-001` (9) — these read as intended detections on configs that really do use unpinned and relative commands.
+
+These configs are unlabelled, so this is not a false-positive rate: a finding may be a genuine hardening gap in that project. What it does show is discriminating power. A rule that fires on four out of five real configs cannot separate a careless project from a careful one, and "no findings" is not the default outcome of a scan — 32 of 37 ordinary configs produce something.
+
 ## What this does and does not measure
 
-This is a recall check against labels the project wrote. It cannot measure false positives: no benign project corpus is published, so the false-positive side of the comparison stays unmeasured. A hand-written best-practice `.mcp.json` (absolute interpreter path, pinned local script, no shell metacharacters) still produced one finding, `AAK-MCP-ATTEST-001` (medium), a policy rule that fires unless attestation metadata is present. That is a design choice, not a defect, but it means "no findings" is not the default outcome for a clean project.
+The recall half is measured against labels the project wrote. The false-positive half cannot be measured the same way, because no benign project corpus is published; the real-world scan above is a proxy, not a substitute. A hand-written best-practice `.mcp.json` (absolute interpreter path, pinned local script, no shell metacharacters) also produced one finding, `AAK-MCP-ATTEST-001` (medium). That is a policy rule, and its near-universal behaviour on real configs is the most useful single number in this note.
 
 AAK is an artifact scanner and ATR is a content pattern set, so the two numbers in [rule-set-comparison.md](rule-set-comparison.md) are not the same kind of measurement. What the two now share is a method: run each project against its own published ground truth.
 
