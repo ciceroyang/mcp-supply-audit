@@ -44,4 +44,4 @@ AAK is an artifact scanner and ATR is a content pattern set, so the two numbers 
 
 ## Note
 
-Two defects were found in 0.6.5 — one reporting-correctness, one fail-open in the CI gate. Both are held for coordinated disclosure and are deliberately not described here.
+Two defects were found in 0.6.5. Both are held for coordinated disclosure and are deliberately not described here.
