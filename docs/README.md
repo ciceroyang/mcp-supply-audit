@@ -21,6 +21,10 @@ The two catalogues people actually deploy, measured against their own published 
 - [`notes/guard-scan-2026-09.md`](notes/guard-scan-2026-09.md) — the census packages run through [agent-guard](https://github.com/ciceroyang/agent-guard)'s manifest checks, with the coverage split reported rather than assumed.
 - [`notes/repo-scan-2026-09.md`](notes/repo-scan-2026-09.md) — the scanner pointed at 40 real repositories, and the three false-positive classes that came out of the run.
 
+## The product
+
+- [`product/trust-index.md`](product/trust-index.md) — the thesis this repository is growing into: a reproducible trust index for agent tools, where every claim is traceable and nothing is called clean when it was not checked.
+
 ## Writing
 
 - [`articles/2026-09-scanner-that-said-clean.md`](articles/2026-09-scanner-that-said-clean.md) — the full story in one piece: the fail-open bug, the measurement I got wrong and corrected, what the two rule sets look like under their own labels, and the tool that came out of it.
