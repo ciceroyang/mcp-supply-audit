@@ -1,5 +1,11 @@
 # mcp-supply-audit
 
+> **Consolidated.** This code now lives in [agentgate](https://github.com/ciceroyang/agentgate)
+> as `packages/collect`, together with the rest of the control plane under one quickstart and one
+> licence. This repository stays for its history and its releases; new work happens in
+> agentgate.
+
+
 Census and provenance audit for the public MCP server ecosystem.
 
 The [official MCP registry](https://registry.modelcontextprotocol.io) describes every server in a structured `server.json` — packages, transport, repository — which makes it a far better enumeration source than the GitHub topics. This tool reads that registry, resolves each declared package against its package-registry metadata, and reports findings that carry the exact field and value they came from, so a reader can reproduce every verdict without trusting the tool.
