@@ -11,6 +11,8 @@ node scripts/guard-scan.mjs --census census.json --out guard-scan.json --summary
 # agent-guard is found at ../agent-guard, or pass --agent-guard <path>
 ```
 
+It runs on every census refresh: the daily workflow checks out agent-guard alongside this repository, scans the resolved packages, and uploads `guard-scan.json` and `guard-scan.md` next to the census in the same rolling release.
+
 ## Result
 
 - packages considered: **245**
