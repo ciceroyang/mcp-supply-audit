@@ -9,7 +9,10 @@ The [official MCP registry](https://registry.modelcontextprotocol.io) describes 
 | rule | severity | meaning |
 | --- | --- | --- |
 | `install-time-execution` | high | the declared version defines `preinstall` / `install` / `postinstall` |
-| `install-script-shell-pipeline` | critical | an install hook matches a download/shell pattern (`curl`, `wget`, `sh -c`, `node -e`, a pipe) |
+| `install-hook-critical` | critical | a hook shows a fetch (`curl`, `wget`, a URL), a shell (`sh -c`, `| sh`), a process spawn (`child_process`, `execSync`, `spawn`) or decode-and-exec (`eval`, `base64 -d`) |
+| `install-hook-script-inspected` | info | the hook runs a local script; the published file was fetched and statically scanned, and contained no fetch/spawn/decode pattern |
+| `install-hook-script-critical` | critical | the referenced script itself matches one of the critical patterns |
+| `install-hook-script-unavailable` | unknown | the hook runs a local script whose content could not be fetched — not treated as clean |
 | `repository-mismatch` | medium | the package manifest and the registry entry point at different repositories |
 | `package-repository-missing` | medium | the package manifest has no `repository` field (provenance is unverifiable) |
 | `process-spawn-dependency` | info | declared dependencies that can spawn processes |

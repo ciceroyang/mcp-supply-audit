@@ -89,7 +89,37 @@ function repoKey(url) {
 }
 
 const INSTALL_HOOKS = ['preinstall', 'install', 'postinstall']
-const SHELLISH = /(curl|wget|bash|sh\s+-c|node\s+-e|python\s+-c|chmod|eval|base64\s+-d|\|)/i
+
+// v0 flagged any `node -e` as a shell pipeline. Against the three real artifacts that
+// produced three false positives (install banners and a build step). The critical tier
+// now requires evidence of fetch, spawn, or decode-and-exec; a plain hook stays high.
+const CRITICAL_PATTERNS = [
+  ['network-fetch', /\b(curl|wget)\b/i],
+  ['url-in-hook', /https?:\/\//i],
+  ['shell-command', /\b(sh|bash|zsh)\s+-c\b|\|\s*(sh|bash|zsh)\b/i],
+  ['process-spawn', /\b(execSync|execFileSync|spawnSync|execFile|spawn|child_process)\b/],
+  ['decode-and-exec', /\b(eval|Function)\s*\(|base64\s+-d/i],
+]
+
+/** First critical pattern a hook (or a referenced script) matches, or null. */
+function criticalPatternOf(text) {
+  for (const [label, pattern] of CRITICAL_PATTERNS) {
+    if (pattern.test(String(text))) return label
+  }
+  return null
+}
+
+/** Local script paths an install hook runs, e.g. `node scripts/postinstall.cjs`. */
+export function hookScriptRefs(scripts) {
+  const refs = new Set()
+  for (const hook of INSTALL_HOOKS) {
+    const value = scripts?.[hook]
+    if (typeof value !== 'string') continue
+    const match = /\bnode\s+(?:"|')?([\w./@-]+\.(?:c?js|mjs))/.exec(value)
+    if (match) refs.add(match[1])
+  }
+  return [...refs]
+}
 
 /**
  * Pure rule engine: one registry server plus whatever package metadata we could fetch.
@@ -99,7 +129,7 @@ const SHELLISH = /(curl|wget|bash|sh\s+-c|node\s+-e|python\s+-c|chmod|eval|base6
  * @param {{version?: string}} [declared] - the version the registry declares.
  * @returns {Array<object>} findings.
  */
-export function auditPackage(server, pkgMeta, declared = {}) {
+export function auditPackage(server, pkgMeta, declared = {}, hookScripts = {}) {
   const findings = []
   const add = (rule, severity, evidence) => findings.push({ rule, severity, evidence })
   const packages = Array.isArray(server?.packages) ? server.packages : []
@@ -122,10 +152,25 @@ export function auditPackage(server, pkgMeta, declared = {}) {
   const scripts = versionDoc?.scripts ?? pkgMeta.scripts ?? null
   if (scripts) {
     for (const hook of INSTALL_HOOKS) {
-      if (typeof scripts[hook] === 'string' && scripts[hook].trim() !== '') {
-        add('install-time-execution', 'high', 'scripts.' + hook + '=' + JSON.stringify(scripts[hook]))
-        if (SHELLISH.test(scripts[hook])) {
-          add('install-script-shell-pipeline', 'critical', 'scripts.' + hook + ' matches a shell/download pattern: ' + JSON.stringify(scripts[hook]))
+      const value = scripts[hook]
+      if (typeof value !== 'string' || value.trim() === '') continue
+      add('install-time-execution', 'high', 'scripts.' + hook + '=' + JSON.stringify(value))
+      const label = criticalPatternOf(value)
+      if (label) {
+        add('install-hook-critical', 'critical', 'scripts.' + hook + ' matches ' + label + ': ' + JSON.stringify(value))
+        continue
+      }
+      for (const ref of hookScriptRefs(scripts)) {
+        const content = hookScripts[ref]
+        if (content === undefined || content === null) {
+          add('install-hook-script-unavailable', 'unknown', 'hook runs ' + ref + '; content could not be fetched')
+          continue
+        }
+        const scriptLabel = criticalPatternOf(content)
+        if (scriptLabel) {
+          add('install-hook-script-critical', 'critical', ref + ' matches ' + scriptLabel)
+        } else {
+          add('install-hook-script-inspected', 'info', 'hook runs ' + ref + ' (' + content.length + ' bytes): no fetch/spawn/decode pattern found')
         }
       }
     }
@@ -163,6 +208,20 @@ function npmUrl(name) {
 }
 
 /** Fetch one npm document; returns null on any failure (the caller records unknown). */
+/** Fetch a file from a published package (unpkg, then jsdelivr). Read-only. */
+export async function fetchHookScript(name, version, path, http = defaultHttp) {
+  const clean = String(path).replace(/^\.\//, '')
+  const candidates = [
+    'https://unpkg.com/' + name + '@' + version + '/' + clean,
+    'https://cdn.jsdelivr.net/npm/' + name + '@' + version + '/' + clean,
+  ]
+  for (const url of candidates) {
+    const res = await http(url)
+    if (res.status === 200 && typeof res.text === 'string' && res.text.length > 0) return res.text
+  }
+  return null
+}
+
 export async function fetchNpmDocument(name, http = defaultHttp) {
   const res = await http(npmUrl(name))
   if (res.status !== 200) return null
@@ -275,7 +334,13 @@ async function main() {
       const row = npmRows[index]
       const server = uniqueServers.find((s) => s.name === row.server)
       const doc = await fetchNpmDocument(row.package)
-      row.findings = auditPackage(server, doc, { version: row.version })
+      const declaredVersion = row.version ?? doc?.['dist-tags']?.latest ?? ''
+      const scripts = doc ? (doc.versions?.[declaredVersion]?.scripts ?? doc.scripts ?? null) : null
+      const hookScripts = {}
+      for (const ref of hookScriptRefs(scripts)) {
+        hookScripts[ref] = await fetchHookScript(row.package, declaredVersion, ref)
+      }
+      row.findings = auditPackage(server, doc, { version: row.version }, hookScripts)
       row.audited = true
     }
   }

