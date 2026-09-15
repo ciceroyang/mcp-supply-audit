@@ -63,6 +63,10 @@ Two matching semantics are reported, because the gap matters: **pattern level** 
 
 The worked example is [docs/notes/atr-coverage.md](docs/notes/atr-coverage.md); the weekly artifact is at `https://github.com/ciceroyang/mcp-supply-audit/releases/tag/rule-coverage`.
 
+## The story in one piece
+
+[A scanner said "clean" while four of its scanners were dead](docs/articles/2026-09-scanner-that-said-clean.md) covers the fail-open bug that prompted [agent-guard](https://github.com/ciceroyang/agent-guard), the number I published wrong and corrected, and what both rule sets look like under their own labels.
+
 ## Data
 
 A scheduled workflow refreshes the census and publishes it as a rolling release: `https://github.com/ciceroyang/mcp-supply-audit/releases/tag/mcp-census`.
