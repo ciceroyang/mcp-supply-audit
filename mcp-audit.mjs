@@ -90,21 +90,46 @@ function repoKey(url) {
 
 const INSTALL_HOOKS = ['preinstall', 'install', 'postinstall']
 
-// v0 flagged any `node -e` as a shell pipeline. Against the three real artifacts that
-// produced three false positives (install banners and a build step). The critical tier
-// now requires evidence of fetch, spawn, or decode-and-exec; a plain hook stays high.
-const CRITICAL_PATTERNS = [
-  ['network-fetch', /\b(curl|wget)\b/i],
-  ['url-in-hook', /https?:\/\//i],
-  ['shell-command', /\b(sh|bash|zsh)\s+-c\b|\|\s*(sh|bash|zsh)\b/i],
-  ['process-spawn', /\b(execSync|execFileSync|spawnSync|execFile|spawn|child_process)\b/],
-  ['decode-and-exec', /\b(eval|Function)\s*\(|base64\s+-d/i],
-]
+// A URL or the word `curl` inside a console.log notice is not evidence: v0.1 flagged
+// exactly that on two real packages. Patterns now run on text with string literals and
+// comments stripped, and a bare URL is never evidence by itself.
+export function stripStringsAndComments(text) {
+  return String(text)
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ')
 
-/** First critical pattern a hook (or a referenced script) matches, or null. */
-function criticalPatternOf(text) {
+    .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+    .replace(/`(?:[^`\\]|\\.)*`/g, '``')
+}
+
+// `network-module` is checked against the raw text: module names live in strings, and
+// mentioning node:http in a warning is not plausible. Everything else runs stripped.
+const CRITICAL_PATTERNS = [
+  ['process-spawn', /\b(execSync|execFileSync|spawnSync|execFile|spawn|child_process)\b/],
+  ['shell-command', /\b(sh|bash|zsh)\s+-c\b|\|\s*(sh|bash|zsh)\b/],
+  ['download-tool', /\b(curl|wget)\b/],
+  ['decode-and-exec', /\b(eval|Function)\s*\(|base64\s+-d/],
+]
+const NETWORK_MODULE = /\b(node:https?|node-fetch|axios|undici|got)\b|require\(\s*['"](?:node:)?https?['"]\s*\)/
+
+/**
+ * First critical pattern the text matches, or null.
+ *
+ * Two modes, because the same characters mean different things: in a `postinstall`
+ * command the quoted argument of `node -e "..."` IS the executed code, so hooks are
+ * matched raw; in a referenced script the quoted text is usually data (a notice with a
+ * URL), so script content is matched after strings and comments are stripped.
+ * @param {string} text
+ * @param {'hook'|'script'} [mode]
+ * @returns {string|null} pattern label.
+ */
+export function criticalPatternOf(text, mode = 'script') {
+  const raw = String(text)
+  if (mode === 'script' && NETWORK_MODULE.test(raw)) return 'network-module'
+  const subject = mode === 'hook' ? raw : stripStringsAndComments(raw)
   for (const [label, pattern] of CRITICAL_PATTERNS) {
-    if (pattern.test(String(text))) return label
+    if (pattern.test(subject)) return label
   }
   return null
 }
@@ -155,7 +180,7 @@ export function auditPackage(server, pkgMeta, declared = {}, hookScripts = {}) {
       const value = scripts[hook]
       if (typeof value !== 'string' || value.trim() === '') continue
       add('install-time-execution', 'high', 'scripts.' + hook + '=' + JSON.stringify(value))
-      const label = criticalPatternOf(value)
+      const label = criticalPatternOf(value, 'hook')
       if (label) {
         add('install-hook-critical', 'critical', 'scripts.' + hook + ' matches ' + label + ': ' + JSON.stringify(value))
         continue
