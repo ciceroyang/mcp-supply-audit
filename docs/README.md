@@ -23,6 +23,12 @@ The two catalogues people actually deploy, measured against their own published 
 
 ## The product
 
+- [`product/b2b.md`](product/b2b.md) — the business shape: enterprise agent governance, the four parts, the open-core split, and what is honestly missing.
+- [`product/trust-index.md`](product/trust-index.md) — the thesis the evidence model comes from.
+- [`product/positioning.md`](product/positioning.md) — why the product is the tool supply rather than an audit report.
+
+## The product
+
 - [`product/trust-index.md`](product/trust-index.md) — the thesis this repository is growing into: a reproducible trust index for agent tools, where every claim is traceable and nothing is called clean when it was not checked.
 
 ## Writing

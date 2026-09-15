@@ -75,6 +75,9 @@ The first written report, generated from that artifact, is [docs/census-2026-09.
 
 Everything in `docs/` is indexed in [docs/README.md](docs/README.md).
 
-## License
+## Licence
 
-MIT. Maintained by [@ciceroyang](https://github.com/ciceroyang).
+AGPL-3.0. A commercial licence is available for use the AGPL does not permit; see
+[docs/product/b2b.md](docs/product/b2b.md).
+
+Maintained by [@ciceroyang](https://github.com/ciceroyang).
