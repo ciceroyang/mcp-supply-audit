@@ -190,14 +190,22 @@ export function precisionProbes(conditions, ruleIndex, benignDir) {
       samples.push({ text: row.text, forRule: typeof row.for_rule === "string" ? row.for_rule : null, file: file.split("/").pop() })
     }
   }
+  // One pass: test each pattern once, then derive non-suppressed rules from that result.
+  // Conditions are tracked by identity, not by rule id, because every condition of a rule
+  // shares its id and `condition: all` must still require each condition separately.
   const patternHits = []
   const ruleHits = []
   for (const s of samples) {
     const pm = []
-    for (const c of conditions) if (c.re.test(s.text)) pm.push(c)
+    const matched = new Set()
+    for (const c of conditions) if (c.re.test(s.text)) { pm.push(c); matched.add(c) }
     patternHits.push(pm)
     const rm = []
-    for (const r of ruleIndex) if (ruleMatches(r, s.text)) rm.push(r)
+    for (const r of ruleIndex) {
+      if (r.suppress) { if (ruleMatches(r, s.text)) rm.push(r); continue }
+      const hit = r.mode === "all" ? r.conditions.every((c) => matched.has(c)) : r.conditions.some((c) => matched.has(c))
+      if (hit) rm.push(r)
+    }
     ruleHits.push(rm)
   }
   const patternScope = (label, predicate) => {
