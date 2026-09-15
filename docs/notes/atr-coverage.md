@@ -59,3 +59,23 @@ cd agent-threat-rules && git sparse-checkout set rules
 ```
 
 Corpus: the census artifact at https://github.com/ciceroyang/mcp-supply-audit/releases/tag/mcp-census.
+
+## Result 3: false-positive pressure on their own benign corpora
+
+The recall side is only half the picture. The same matcher (868 compiled regexes, **no gates**, therefore an upper bound) was run over **820 samples** drawn from the project's own benign corpora (`data/benign-code/corpus.jsonl`, `agent-ops`, and the g1/g2/g10/g11 benign twins).
+
+**19 samples flagged (2.3%)**, concentrated in five rules:
+
+| rule | FP hits | what it matched |
+| --- | --- | --- |
+| `ATR-2026-00002` Indirect Prompt Injection via External Content | 7 | Node docs, an MDN reference, a Jest issue, a CI log and a security-advisory writeup that quote a `data:` URL import |
+| `ATR-2026-00061` Skill Description-Behavior Mismatch | 6 | `os.environ.get('API_KEY')`, and constructing an OpenAI client with a `base_url` |
+| `ATR-2026-00297` Python RCE via LLM Prompt | 3 | a benign socket health check against a normal domain on port 443 |
+| `ATR-2026-01605` SSRF AWS Instance Metadata | 1 | a hardening note telling operators to block the metadata IP |
+| `ATR-2026-00500` SSRF via Agent URL Fetch | 1 | a fetch against `http://localhost:3000/api/health` |
+
+Four generalisable classes: **prose about a technique** (documentation quotes the pattern), **the mitigation rather than the attack** (a hardening note matches the endpoint rule), **ordinary credential handling** (reading an env var is the recommended pattern), and **localhost** (already excluded by the download-and-execute rule but not by the SSRF rule).
+
+Reported upstream in Agent-Threat-Rule/agent-threat-rules#568, which is the project's own false-positive demotion loop — they scan enforce-lane rules against 13,971 benign samples and demote the ones that no longer clear the corpus.
+
+Caveat repeated: a full engine applies gates, benign filters and lane assignments that this matcher does not reproduce. The number is the pressure the pattern layer puts on those gates, not the engine's published FP rate.
