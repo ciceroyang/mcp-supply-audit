@@ -67,7 +67,9 @@ The worked example is [docs/notes/atr-coverage.md](docs/notes/atr-coverage.md); 
 
 A scheduled workflow refreshes the census and publishes it as a rolling release: `https://github.com/ciceroyang/mcp-supply-audit/releases/tag/mcp-census`.
 
-The first written report, generated from that artifact, is [docs/census-2026-09.md](docs/census-2026-09.md): 6,000 entries covering 2,143 unique servers, 245 audited npm packages, 16 with install-time execution of which 3 critical.
+The first written report, generated from that artifact, is [docs/census-2026-09.md](docs/census-2026-09.md). From the artifact checked on 2026-09-15: **2,142 unique servers**; 297 declare a package (245 npm, 38 PyPI, 8 OCI, 6 MCPB); 245 npm and 38 PyPI packages audited, 14 not audited; 16 packages with install-time execution, carrying 12 critical findings (11 in an install script, 1 in the hook itself).
+
+Everything in `docs/` is indexed in [docs/README.md](docs/README.md).
 
 ## License
 
