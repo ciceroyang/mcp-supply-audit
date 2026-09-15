@@ -80,7 +80,7 @@ function scanOne(job) {
   } catch (error) {
     return { slug: job.slug, status: "scan-failed", error: String(error && error.message || error) }
   }
-  const findings = result.findings.map(function (f) { return { rule: f.rule, severity: f.severity, file: f.file, message: f.message } })
+  const findings = result.findings.map(function (f) { return { rule: f.rule, severity: f.severity, file: f.file, line: f.line, message: f.message } })
   rmSync(dir, { recursive: true, force: true })
   rmSync(tar, { force: true })
   return { slug: job.slug, status: result.verdict, findings: findings }
