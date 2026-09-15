@@ -19,6 +19,7 @@ The two catalogues people actually deploy, measured against their own published 
 ## Combined with the scanner
 
 - [`notes/guard-scan-2026-09.md`](notes/guard-scan-2026-09.md) — the census packages run through [agent-guard](https://github.com/ciceroyang/agent-guard)'s manifest checks, with the coverage split reported rather than assumed.
+- [`notes/repo-scan-2026-09.md`](notes/repo-scan-2026-09.md) — the scanner pointed at 40 real repositories, and the three false-positive classes that came out of the run.
 
 ## Writing
 
