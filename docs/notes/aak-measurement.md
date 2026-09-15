@@ -55,4 +55,4 @@ AAK is an artifact scanner and ATR is a content pattern set, so the two numbers 
 
 ## Note
 
-Two defects were found in 0.6.5. Both are held for coordinated disclosure and are deliberately not described here.
+Two defects were found in 0.6.5 and reported upstream in `sattyamjjain/agent-audit-kit#743`; the details are in that issue.
