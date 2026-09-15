@@ -16,6 +16,10 @@ The two catalogues people actually deploy, measured against their own published 
 - [`notes/cross-tool-matrix.md`](notes/cross-tool-matrix.md) — ten identical artifacts pushed through both tools.
 - Rolling artifact: release `rule-coverage`, rebuilt weekly.
 
+## Combined with the scanner
+
+- [`notes/guard-scan-2026-09.md`](notes/guard-scan-2026-09.md) — the census packages run through [agent-guard](https://github.com/ciceroyang/agent-guard)'s manifest checks, with the coverage split reported rather than assumed.
+
 ## Findings
 
 - [`notes/install-time-execution.md`](notes/install-time-execution.md) — what runs at install time in published MCP packages.
