@@ -13,7 +13,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -34,10 +34,11 @@ function parse(argv) {
 }
 
 const args = parse(process.argv.slice(2))
-const agentGuardRoot = args.agentGuard || process.env.AGENT_GUARD || resolve(HERE, "..", "..", "agent-guard")
+// resolve() first: a relative --agent-guard would otherwise become a file URL with a host.
+const agentGuardRoot = resolve(args.agentGuard || process.env.AGENT_GUARD || resolve(HERE, "..", "..", "agent-guard"))
 let manifestFindings
 try {
-  const mod = await import("file://" + join(agentGuardRoot, "src", "api.mjs"))
+  const mod = await import(pathToFileURL(join(agentGuardRoot, "src", "api.mjs")).href)
   manifestFindings = mod.manifestFindings
 } catch (error) {
   console.error("could not load agent-guard from " + agentGuardRoot + ": " + error.message)
