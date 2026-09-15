@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { auditPackage, summarize, renderMarkdown } from '../mcp-audit.mjs'
+import { auditPackage, summarize, renderMarkdown, newestPerServer } from '../mcp-audit.mjs'
 
 const server = {
   name: 'acme/server',
@@ -70,11 +70,32 @@ test('renderMarkdown shows the rule table and high-severity rows', () => {
     summary: summarize([
       { server: 'acme/server', package: 'acme-mcp', registryType: 'npm', audited: true, findings: [{ rule: 'install-script-shell-pipeline', severity: 'critical', evidence: 'scripts.postinstall=...' }] },
     ]),
+    registry: { entries: 2, uniqueServers: 1, pages: 1, truncated: false },
     rows: [{ server: 'acme/server', package: 'acme-mcp', findings: [{ rule: 'install-script-shell-pipeline', severity: 'critical', evidence: 'scripts.postinstall=...' }] }],
   }
   const md = renderMarkdown(payload)
-  assert.match(md, /Enumerated \*\*1\*\* registry servers/)
+  assert.match(md, /Enumerated \*\*2\*\* registry entries covering \*\*1\*\* unique servers/)
   assert.match(md, /Audited: \*\*1\*\* npm packages/)
   assert.match(md, /install-script-shell-pipeline/)
   assert.match(md, /Static only/)
+})
+test('newestPerServer keeps the highest published version per name', () => {
+  const servers = [
+    { name: 'a/b', version: '1.0.0' },
+    { name: 'a/b', version: '1.2.0' },
+    { name: 'a/b', version: '1.1.9' },
+    { name: 'c/d', version: '0.1.0' },
+  ]
+  const kept = newestPerServer(servers)
+  assert.equal(kept.length, 2)
+  assert.equal(kept.find((s) => s.name === 'a/b').version, '1.2.0')
+})
+
+test('auditPackage records one stdio finding even with several packages', () => {
+  const server = { name: 'x/y', packages: [
+    { registryType: 'npm', identifier: 'a', transport: { type: 'stdio' } },
+    { registryType: 'npm', identifier: 'b', transport: { type: 'stdio' } },
+  ] }
+  const findings = auditPackage(server, null, {})
+  assert.equal(findings.filter((f) => f.rule === 'stdio-transport').length, 1)
 })

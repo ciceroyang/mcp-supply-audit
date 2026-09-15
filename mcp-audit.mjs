@@ -47,6 +47,35 @@ export async function fetchRegistry({ http = defaultHttp, max = Infinity, pageSi
   return { servers, pages, truncated: cursor !== null }
 }
 
+function compareVersions(a, b) {
+  const pa = String(a ?? '').split('-')[0].split('.').map(Number)
+  const pb = String(b ?? '').split('-')[0].split('.').map(Number)
+  for (let i = 0; i < 3; i += 1) {
+    const x = Number.isFinite(pa[i]) ? pa[i] : 0
+    const y = Number.isFinite(pb[i]) ? pb[i] : 0
+    if (x !== y) return x < y ? -1 : 1
+  }
+  const preA = String(a ?? '').includes('-') ? 0 : 1
+  const preB = String(b ?? '').includes('-') ? 0 : 1
+  return preA - preB
+}
+
+/**
+ * The registry pages one entry per published version, so a census that audits every
+ * entry over-counts and repeats findings. Keep the newest version per server name.
+ * @param {Array<object>} servers - raw registry entries.
+ * @returns {Array<object>} one entry per server.
+ */
+export function newestPerServer(servers) {
+  const byName = new Map()
+  for (const server of servers) {
+    const name = server?.name ?? '(unnamed)'
+    const current = byName.get(name)
+    if (!current || compareVersions(server.version, current.version) > 0) byName.set(name, server)
+  }
+  return [...byName.values()]
+}
+
 /** Normalise a repository URL to `host/path` so two checkouts of the same project match. */
 function repoKey(url) {
   if (!url) return null
@@ -75,10 +104,10 @@ export function auditPackage(server, pkgMeta, declared = {}) {
   const add = (rule, severity, evidence) => findings.push({ rule, severity, evidence })
   const packages = Array.isArray(server?.packages) ? server.packages : []
 
-  for (const entry of packages) {
-    if (entry?.transport?.type === 'stdio') {
-      add('stdio-transport', 'info', 'packages[].transport.type=stdio (runs locally as a child process)')
-    }
+  // One finding per server, not per package: the same server often ships several
+  // stdio packages and duplicate rows inflate every count downstream.
+  if (packages.some((entry) => entry?.transport?.type === 'stdio')) {
+    add('stdio-transport', 'info', 'packages[].transport.type=stdio (runs locally as a child process)')
   }
 
   if (!pkgMeta) {
@@ -174,11 +203,11 @@ export function renderMarkdown(payload) {
   lines.push('')
   lines.push('Generated ' + payload.generatedAt + ' from ' + payload.source + '.')
   lines.push('')
-  lines.push('Enumerated **' + s.servers.total + '** registry servers. **' + s.servers.withPackage + '** declare a package (' + Object.entries(s.packageTypes).map(([type, count]) => type + ' ' + count).join(', ') + '); **' + s.servers.remoteOnly + '** are remote-only (no package, out of scope for this audit).')
+  lines.push('Enumerated **' + (payload.registry?.entries ?? s.servers.total) + '** registry entries covering **' + s.servers.total + '** unique servers. **' + s.servers.withPackage + '** declare a package (' + Object.entries(s.packageTypes).map(([type, count]) => type + ' ' + count).join(', ') + '); **' + s.servers.remoteOnly + '** are remote-only (no package, out of scope for this audit).')
   lines.push('')
   lines.push('Audited: **' + s.servers.auditedNpm + '** npm packages. **' + s.servers.notAuditedPackages + '** package-declaring servers use a registry this version does not audit yet and are **not** reported as clean.')
   lines.push('')
-  lines.push('| rule | servers |', '| --- | --- |')
+  lines.push('| rule | findings |', '| --- | --- |')
   for (const [rule, count] of Object.entries(s.ruleCounts).sort((a, b) => b[1] - a[1])) lines.push('| ' + rule + ' | ' + count + ' |')
   lines.push('')
   const notable = payload.rows
@@ -225,7 +254,9 @@ async function main() {
   const registry = await fetchRegistry({ max: args.max, onPage: (page, count) => process.stderr.write('  registry page ' + page + ': ' + count + ' servers\n') })
   process.stderr.write('servers: ' + registry.servers.length + (registry.truncated ? ' (truncated at --max)' : '') + '\n')
 
-  const rows = registry.servers.map((server) => ({
+  const uniqueServers = newestPerServer(registry.servers)
+  process.stderr.write('unique servers: ' + uniqueServers.length + '\n')
+  const rows = uniqueServers.map((server) => ({
     server: server.name,
     version: server.version ?? null,
     package: Array.isArray(server.packages) && server.packages.length > 0 ? server.packages[0].identifier : null,
@@ -242,7 +273,7 @@ async function main() {
       const index = cursor
       cursor += 1
       const row = npmRows[index]
-      const server = registry.servers.find((s) => s.name === row.server)
+      const server = uniqueServers.find((s) => s.name === row.server)
       const doc = await fetchNpmDocument(row.package)
       row.findings = auditPackage(server, doc, { version: row.version })
       row.audited = true
@@ -254,7 +285,7 @@ async function main() {
     schema: SCHEMA,
     generatedAt: new Date().toISOString(),
     source: REGISTRY,
-    registry: { servers: registry.servers.length, pages: registry.pages, truncated: registry.truncated },
+    registry: { entries: registry.servers.length, uniqueServers: uniqueServers.length, pages: registry.pages, truncated: registry.truncated },
     summary: summarize(rows),
     rows,
   }
