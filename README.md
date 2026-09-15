@@ -45,6 +45,24 @@ The registry contains servers that declare no package (remote-only) and packages
 - **Not** a scanner of live endpoints. The tool never contacts a server URL, never installs or executes a package, and never sends credentials anywhere. It is read-only against public registries.
 - **Not** a replacement for the rule-based agent-security projects (ATR, AgentAuditKit). It is the evidence layer underneath them: a reproducible census with per-finding provenance.
 
+## Measuring a rule set, not just the registry
+
+`scripts/rule-coverage.mjs` measures an agent-threat rule catalog against the same public artifacts this census produces, and `scripts/extract-atr-conditions.py` extracts the conditions with a real YAML parser (a hand-rolled scanner silently drops two thirds of them).
+
+```sh
+# conditions are extracted once and committed as data/atr-conditions.json
+python3 -m pip install pyyaml
+python3 scripts/extract-atr-conditions.py /path/to/rules --out data/atr-conditions.json
+
+# recall probes, the full published benign corpus, and a rank cross-check
+node scripts/rule-coverage.mjs --benign /path/to/benign-corpora \
+  --atr-fp /path/to/benign-fp-measurement.json --out rule-coverage.json --summary rule-coverage.md
+```
+
+Two matching semantics are reported, because the gap matters: **pattern level** (any single regex matches — an upper bound) and **rule level** (honours `detection.condition` and reproduces the `tags.suppress_in_code_blocks` gate). It also reports the named benign twins the corpus ships and compares its per-rule ranking against the rule project's own published false-positive measurement.
+
+The worked example is [docs/notes/atr-coverage.md](docs/notes/atr-coverage.md); the weekly artifact is at `https://github.com/ciceroyang/mcp-supply-audit/releases/tag/rule-coverage`.
+
 ## Data
 
 A scheduled workflow refreshes the census and publishes it as a rolling release: `https://github.com/ciceroyang/mcp-supply-audit/releases/tag/mcp-census`.

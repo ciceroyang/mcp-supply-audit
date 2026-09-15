@@ -1,0 +1,62 @@
+name: rule-coverage
+
+# Weekly, reproducible coverage measurement of the ATR agent-threat rule set:
+# the full published benign corpus, this repository's pattern-layer matcher, and
+# a rank-agreement cross-check against ATR's own false-positive measurement.
+
+on:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rule-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet pyyaml
+      - name: Fetch the rule catalog and the published corpora
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse \
+            https://github.com/Agent-Threat-Rule/agent-threat-rules /tmp/atr
+          cd /tmp/atr
+          git sparse-checkout set --no-cone rules data/benign-code data/benign-corpus-extended data/benign-fp-measurement.json
+          mkdir -p /tmp/benign
+          find data/benign-code data/benign-corpus-extended -name '*.jsonl' -exec cp {} /tmp/benign/ \;
+          echo "rule files: $(find rules -name '*.yaml' | wc -l)"
+          echo "benign samples: $(cat /tmp/benign/*.jsonl | wc -l)"
+      - name: Extract conditions with a real YAML parser
+        run: |
+          SHA=$(git -C /tmp/atr rev-parse --short HEAD)
+          python3 scripts/extract-atr-conditions.py /tmp/atr/rules \
+            --out /tmp/atr-conditions.json \
+            --label "Agent-Threat-Rule/agent-threat-rules@$SHA"
+      - name: Run the repository test suite
+        run: node --test
+      - name: Measure
+        run: |
+          node scripts/rule-coverage.mjs \
+            --conditions /tmp/atr-conditions.json \
+            --benign /tmp/benign \
+            --atr-fp /tmp/atr/data/benign-fp-measurement.json \
+            --out rule-coverage.json \
+            --summary rule-coverage.md
+      - name: Publish the rolling measurement
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view rule-coverage >/dev/null 2>&1 || gh release create rule-coverage \
+            --title "Agent-threat rule-set coverage measurement" \
+            --notes "Rolling weekly measurement of the ATR rule set: catalog shape, recall probes, the full published benign corpus at pattern and rule level, and rank agreement with ATR's own FP measurement."
+          gh release upload rule-coverage rule-coverage.json rule-coverage.md --clobber
+          gh release edit rule-coverage --notes-file rule-coverage.md
