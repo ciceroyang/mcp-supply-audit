@@ -42,6 +42,8 @@ The registry contains servers that declare no package (remote-only) and packages
 
 A scheduled workflow refreshes the census and publishes it as a rolling release: `https://github.com/ciceroyang/mcp-supply-audit/releases/tag/mcp-census`.
 
+The first written report, generated from that artifact, is [docs/census-2026-09.md](docs/census-2026-09.md): 6,000 entries covering 2,143 unique servers, 245 audited npm packages, 16 with install-time execution of which 3 critical.
+
 ## License
 
 MIT. Maintained by [@ciceroyang](https://github.com/ciceroyang).
