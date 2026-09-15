@@ -19,7 +19,7 @@ The two catalogues people actually deploy, measured against their own published 
 ## Findings
 
 - [`notes/install-time-execution.md`](notes/install-time-execution.md) — what runs at install time in published MCP packages.
-- AgentAuditKit 0.6.5 lets a crashed scanner pass the run. Reported upstream: [sattyamjjain/agent-audit-kit#743](https://github.com/sattyamjjain/agent-audit-kit/issues/743).
+- [`findings/agentauditkit-0.6.5-scanner-fail-open.md`](findings/agentauditkit-0.6.5-scanner-fail-open.md) — AgentAuditKit 0.6.5 lets a crashed scanner pass the run, with the reproduction and root cause. Reported upstream: [sattyamjjain/agent-audit-kit#743](https://github.com/sattyamjjain/agent-audit-kit/issues/743).
 
 ## Reproduce
 
