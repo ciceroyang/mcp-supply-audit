@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this census, these measurements or the scripts, please cite it as below."
+title: "mcp-supply-audit: a reproducible evidence layer for the MCP and agent-tool ecosystem"
+abstract: >-
+  Read-only census of the public MCP registry with the field and value behind
+  every finding, plus independent measurements of published agent-security rule
+  sets against their own ground truth, and coordinated disclosure of defects
+  found in those tools.
+authors:
+  - alias: ciceroyang
+    name: ciceroyang
+type: software
+license: MIT
+repository-code: https://github.com/ciceroyang/mcp-supply-audit
+url: https://github.com/ciceroyang/mcp-supply-audit
+keywords:
+  - mcp
+  - agent-security
+  - llm-security
+  - supply-chain
+  - rule-sets
+  - reproducible-research

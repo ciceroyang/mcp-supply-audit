@@ -21,6 +21,10 @@ The two catalogues people actually deploy, measured against their own published 
 - [`notes/install-time-execution.md`](notes/install-time-execution.md) — what runs at install time in published MCP packages.
 - [`findings/agentauditkit-0.6.5-scanner-fail-open.md`](findings/agentauditkit-0.6.5-scanner-fail-open.md) — AgentAuditKit 0.6.5 lets a crashed scanner pass the run, with the reproduction and root cause. Reported upstream: [sattyamjjain/agent-audit-kit#743](https://github.com/sattyamjjain/agent-audit-kit/issues/743).
 
+## Where it has been published
+
+[`publications.md`](publications.md) keeps the list of public outputs — the upstream issues and comments, the rolling releases, and what each one contributes.
+
 ## Reproduce
 
 Every script lives in `scripts/`, every measured artifact is a release on this repository, and each note states the command that produced it. The root [README](../README.md) has the quick version.
