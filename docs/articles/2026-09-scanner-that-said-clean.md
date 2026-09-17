@@ -47,21 +47,24 @@ The false-positive side is harder, because no benign project corpus is published
 
 I want to be precise about what that number is not. Those configs are unlabelled, so a finding may be a genuine hardening gap in that repository. It is a measure of **discriminating power**, not a false-positive rate. Reporting it as the latter would be the same mistake I made with the YAML scanner, in a different costume.
 
+Pointing the same corpus at a third tool produced the second finding in this series. `atr scan` takes a `.json` path, parses it, and evaluates only those records that carry a `content` field — so a `.mcp.json` is parsed, skipped, and reported as `events_scanned: 1`. A directory path is either handed to the file read (`EISDIR`) or routed to the SKILL.md collector, and the shipped GitHub Action runs the scan under `set +e`, replaces the missing output with an empty SARIF, and prints `clean`. I reported it as [agent-threat-rules#575](https://github.com/Agent-Threat-Rule/agent-threat-rules/issues/575), with the reproduction in [findings/atr-4.0.0-config-scan-noop.md](findings/atr-4.0.0-config-scan-noop.md). It is the same question as the first bug one layer out: not "was there a threat", but "was there a scan".
+
 ## So I built the tool I wanted to be measuring
 
-[agent-guard](https://github.com/ciceroyang/agent-guard) exists because of the bug at the top of this post. It is a small static scanner for agent and MCP projects, zero runtime dependencies, eight checks: MCP configuration, install hooks, content injection, transport, tool descriptions, supply chain, agent settings, and A2A agent cards.
+[agent-guard](https://github.com/ciceroyang/agent-guard) exists because of the bug at the top of this post. It is a small static scanner for agent and MCP projects, zero runtime dependencies, nine checks: MCP configuration, install hooks, content injection, transport, tool descriptions, supply chain, agent settings, A2A agent cards, and source injection.
 
 Its reason to exist is one invariant. Every scan ends in `clean`, `findings` or `incomplete`. `clean` is only emitted when **every** check ran to completion. A check that throws makes the scan `incomplete`, prints the failure, writes it to SARIF as its own error-level result so code scanning cannot miss it, and exits **2 — at every `--fail-on` level**. Lowering the threshold cannot turn a partial scan into a pass. The only way through is an explicit `--allow-incomplete`, and the report still says `incomplete`.
 
 That is the shape of the bug I found, turned inside out. You cannot have a green build from a scanner that did not run.
 
-Three things I would not have built without the measurements:
+Four things I would not have built without the measurements:
 
 - **The injection check knows about quoting.** An override phrase inside a fenced block or an inline code span is reported at low severity with a `(quoted: ...)` marker. It is still reported. Security write-ups are made of examples, and suppressing them outright would be a blind spot; treating them as live instruction text makes the tool useless on any repository that documents the problem.
 - **Coverage is reported, not assumed.** A config that exists but does not parse lands in `coverage.unparsedFiles`, not in the findings. It is a hole in what was assessed, and calling it a finding overstates what the scan knows. The same rule governs the census: of 245 resolved packages, 22 whose manifest could not be fetched are counted as unmeasured — folding them into "clean" would have made the headline 238 instead of 216, and that number would have been false.
 - **The rules get measured against real data, and lose arguments.** Over 37 real-world configs, an early version of the credential rule fired five times on values like `GITHUB_PERSONAL_ACCESS_TOKEN` and `${MY_KEY}`. Those are placeholders and references, not secrets. Tightening it removed all five false positives and no true positive. Separately, every mutable-source dependency hit turned out to be a `devDependency`, which cannot reach a consumer of the package, so those now report at a lower severity with `(dev-only)` in the message. The findings stayed; their weight changed.
+- **A field the scanner cannot read is reported, not defaulted.** The MCP check coerced a malformed `args` or `command` to `[]` or `""`, so `{"command": "node", "args": 42}` scanned as `clean` — the entry was never assessed and nothing said so. It is a finding now (`AG-MCP-016`), which is the same invariant one level down: a tool may not claim to have assessed what it could not read. I found it by pointing my own scanner at the corpus I had built for the other two.
 
-The project carries a committed corpus — six benign projects that must stay silent, ten that must fire — and CI fails on either a false positive or a missed rule. The scanner scans itself in CI, with its own intentional bad examples excluded. And it ships as a GitHub Action whose wrapper returns the CLI exit code unchanged, with a test that asserts a bad project fails: a wrapper that swallows exit code 2 would quietly undo the one guarantee that matters.
+The project carries a committed corpus — six benign projects that must stay silent, eleven that must fire — and CI fails on either a false positive or a missed rule. The scanner scans itself in CI, with its own intentional bad examples excluded. And it ships as a GitHub Action whose wrapper returns the CLI exit code unchanged, with a test that asserts a bad project fails: a wrapper that swallows exit code 2 would quietly undo the one guarantee that matters.
 
 ## If you are evaluating a scanner
 
@@ -73,7 +76,8 @@ Then find its own test corpus and its own published numbers, and check the metho
 
 - Census and rule-set measurements: [github.com/ciceroyang/mcp-supply-audit](https://github.com/ciceroyang/mcp-supply-audit) — rolling `mcp-census` and `rule-coverage` releases.
 - The scanner, its corpus and its action: [github.com/ciceroyang/agent-guard](https://github.com/ciceroyang/agent-guard).
-- AgentAuditKit fail-open report: [agent-audit-kit#743](https://github.com/sattyamjjain/agent-audit-kit/issues/743).
+- AgentAuditKit fail-open report: [agent-audit-kit#743](https://github.com/sattyamjjain/agent-audit-kit/issues/743), write-up in [findings/agentauditkit-0.6.5-scanner-fail-open.md](findings/agentauditkit-0.6.5-scanner-fail-open.md).
+- Agent Threat Rules config-scan report: [agent-threat-rules#575](https://github.com/Agent-Threat-Rule/agent-threat-rules/issues/575), write-up in [findings/atr-4.0.0-config-scan-noop.md](findings/atr-4.0.0-config-scan-noop.md).
 - My correction of my own numbers: [agent-threat-rules#568](https://github.com/Agent-Threat-Rule/agent-threat-rules/pull/568).
 
 Everything is read-only against public sources. Dynamic testing happens only in throwaway directories on my own machine; no third-party system is touched, no package is installed, and nothing is executed from a scanned project.
