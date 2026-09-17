@@ -24,14 +24,16 @@ They are not two implementations of the same thing. ATR is a **detection-pattern
 
 That matters for anyone choosing between them: the overlap is roughly MCP configuration and tool poisoning, while prompt/content detection is ATR's lane and config/code/taint plus rug-pull and SBOM work is AAK's. A deployment that installs only one of them has an unmeasured half.
 
-## Measured on ATR, and not yet on AAK
+## Measured on each project's own ground truth
 
 The pattern-layer measurement in [atr-coverage.md](atr-coverage.md) found two things this comparison predicts:
 
 - **Recall asymmetry**: with all 3,443 patterns compiled, English injection phrasings match 9–11 ATR rules and natural Chinese phrasings 1–2; the code-switched `Ignore 以上所有 instructions` matches none.
 - **False-positive pressure**: over ATR's full published benign corpus (11,780 samples across 26 files) our rule-level matcher flags 39.1% of samples, yet it passes **172/172** of the samples whose own `for_rule` metadata names the rule they must not trigger. Ranking rules by benign pressure agrees with ATR's own published `fp_count` at **Spearman rho 0.952** over 793 rules. The pressure concentrates in `condition: any` rules whose fields the corpus cannot stand in for — see [atr-coverage.md](atr-coverage.md).
 
-AAK has not been measured the same way here yet. Its `scan` command targets project artifacts rather than arbitrary text, so a fair run needs a constructed corpus rather than the same text samples; that is the next step, and until it exists this note makes no claim about AAK's precision.
+AAK is an artifact scanner, not a text pattern set, so the same samples do not transfer — it was measured against its own published ground truth instead, in [aak-measurement.md](aak-measurement.md): 13 labelled vulnerable configs, then 37 real `.mcp.json` files taken from public repositories. Recall on the project's own labels is 100% (73/73 expected rules, 13/13 examples). The number the labels cannot supply is the one that matters here: `AAK-MCP-ATTEST-001` fires on **30 of 37** ordinary real-world configs. It is a policy rule and not a defect, but it means the finding count is no more of a discriminator in AAK's output than match count is in ATR's.
+
+Both notes now use the same method — run each project against ground truth it cannot have tuned to this measurement, or against artifacts it did not select — and both say where the measurement is blind. Neither number is a precision claim on the other's lane.
 
 ## Reproduce
 

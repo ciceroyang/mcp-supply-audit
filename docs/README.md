@@ -27,10 +27,6 @@ The two catalogues people actually deploy, measured against their own published 
 - [`product/trust-index.md`](product/trust-index.md) — the thesis the evidence model comes from.
 - [`product/positioning.md`](product/positioning.md) — why the product is the tool supply rather than an audit report.
 
-## The product
-
-- [`product/trust-index.md`](product/trust-index.md) — the thesis this repository is growing into: a reproducible trust index for agent tools, where every claim is traceable and nothing is called clean when it was not checked.
-
 ## Writing
 
 - [`articles/2026-09-scanner-that-said-clean.md`](articles/2026-09-scanner-that-said-clean.md) — the full story in one piece: the fail-open bug, the measurement I got wrong and corrected, what the two rule sets look like under their own labels, and the tool that came out of it.
@@ -38,7 +34,8 @@ The two catalogues people actually deploy, measured against their own published 
 ## Findings
 
 - [`notes/install-time-execution.md`](notes/install-time-execution.md) — what runs at install time in published MCP packages.
-- [`findings/agentauditkit-0.6.5-scanner-fail-open.md`](findings/agentauditkit-0.6.5-scanner-fail-open.md) — AgentAuditKit 0.6.5 lets a crashed scanner pass the run, with the reproduction and root cause. Reported upstream: [sattyamjjain/agent-audit-kit#743](https://github.com/sattyamjjain/agent-audit-kit/issues/743).
+- [`findings/agentauditkit-0.6.5-scanner-fail-open.md`](findings/agentauditkit-0.6.5-scanner-fail-open.md) — AgentAuditKit 0.6.5 lets a crashed scanner pass the run, with the reproduction and root cause. Fixed in 0.6.6 and verified from this side. Reported upstream: [sattyamjjain/agent-audit-kit#743](https://github.com/sattyamjjain/agent-audit-kit/issues/743).
+- [`findings/atr-4.0.0-config-scan-noop.md`](findings/atr-4.0.0-config-scan-noop.md) — `atr scan` parses an MCP config file, skips it, and counts it as one scanned event; the shipped Action reports clean either way. Same corpus, second tool. Reported upstream: [Agent-Threat-Rule/agent-threat-rules#575](https://github.com/Agent-Threat-Rule/agent-threat-rules/issues/575).
 
 ## Where it has been published
 

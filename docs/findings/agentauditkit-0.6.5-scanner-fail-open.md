@@ -72,6 +72,19 @@ python3 -c "import json;print(json.load(open('o.json'))['summary']['filesScanned
 - Return real files from those eight scanners, or widen the return value so files and evaluated rules both survive.
 - Cheap regression tests: an empty directory should report `filesScanned == 0`, and malformed UTF-8 should exit non-zero under `--ci`.
 
+## Fixed in 0.6.6, verified from this side
+
+Both defects were fixed in 0.6.6 ([sattyamjjain/agent-audit-kit#744](https://github.com/sattyamjjain/agent-audit-kit/pull/744), merged 2026-09-15) and verified independently against the published wheel, with the same corpus run against 0.6.5 and 0.6.6 side by side:
+
+| input | 0.6.5 exit | 0.6.5 reported | 0.6.6 exit | 0.6.6 `complete` |
+| --- | --- | --- | --- | --- |
+| invalid UTF-8 (4 scanners die) | 0 | 0 | **1** | `false` |
+| `"args": 42` (composition scanner dies) | 0 | 1 | 0 | `true` |
+| clean config | 0 | 1 | 0 | `true` |
+| empty directory | 0 | 0 | 0 | `true` |
+
+The severity-floor exemption is the part that matters: the crash finding is now visible without `--severity info`, which is what turns it from a record into a gate. `--allow-scanner-failure` returns exit 0 while the summary still says `complete: false` and the four failures stay in the JSON, so the flag changes the gate and not the record. `filesScanned` on an empty directory is now 0 instead of 15. Verified 2026-09-17; the verification comment is on [#743](https://github.com/sattyamjjain/agent-audit-kit/issues/743).
+
 ## Method
 
 Read-only inspection of the published wheel and its public repository. The crashing inputs were crafted and run only in throwaway directories under `/tmp`; no third-party system was contacted and nothing was installed from the scanned projects. Both defects reproduce from the commands above; they were checked with a script that asserts the outputs shown here (15 assertions, all passing) rather than from reading the source alone.

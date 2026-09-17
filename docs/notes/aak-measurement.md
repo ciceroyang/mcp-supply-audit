@@ -53,6 +53,13 @@ The recall half is measured against labels the project wrote. The false-positive
 
 AAK is an artifact scanner and ATR is a content pattern set, so the two numbers in [rule-set-comparison.md](rule-set-comparison.md) are not the same kind of measurement. What the two now share is a method: run each project against its own published ground truth.
 
-## Note
+## The defects this run surfaced, and their fix
 
-Two defects were found in 0.6.5 and reported upstream in `sattyamjjain/agent-audit-kit#743`; the details are in that issue.
+Two defects were found in 0.6.5 and reported upstream in `sattyamjjain/agent-audit-kit#743`:
+
+1. A scanner that raised was recorded as an `AAK-INTERNAL-SCANNER-FAIL` finding at INFO, which is below the default reporting floor and below anything `--fail-on` can express. A run in which four scanners had died and every MCP config rule was skipped exited 0, and `--score` still returned 100/100 grade A.
+2. `filesScanned` counted rule ids. Eight scanners returned the set of rule ids they evaluate as their second return value, so an empty directory reported 15 files.
+
+Both were fixed in 0.6.6, and the fix was verified independently from this side — see [findings/agentauditkit-0.6.5-scanner-fail-open.md](../findings/agentauditkit-0.6.5-scanner-fail-open.md). The same failure class was then checked in ATR, where it is still live: [findings/atr-4.0.0-config-scan-noop.md](../findings/atr-4.0.0-config-scan-noop.md).
+
+The recall and false-positive numbers above are from 0.6.5 and are left exactly as measured. 0.6.6 changed the failure reporting, the file-count contract, and the deferred CVE rules (348 → 352 rules), so these numbers should be re-run before anyone compares them across versions.
